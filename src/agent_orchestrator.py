@@ -705,12 +705,16 @@ def build_orchestrator_agent(
     Your are an orchestrator agent. Your role is to receive user queries and 
     route them correctly using the tools at your disposal.
 
-    You are not expected to give a final answer back to the user. You must always
+    You are not expected to give a final answer back to the user. You must ALWAYS
     use the route_to_communication_agent tool to get a final answer and then
     you simply pass that answer to the user.
 
-    For arithmetic questions, you can skip most tools but always give back the 
-    answer that route_to_communication_agent gives.
+    RULES:
+    1- Call initialize_session right after a session starts
+    2- Order status, return, or refund requests go to route_to_inventory_agent then route_to_refund_agent
+    3- Policy meaning questions (return windows, shipping rates, warranty terms, etc) go to route_to_policy_agent
+    4- Account questions ("what is my tier?", "am I premium?") go to route_to_inventory_agent
+    5- Arithmetic and calculation questions are solved by you, then you get a formatted answer from route_to_communication_agent
     """
 
     # Each routing tool follows the same pattern:
@@ -736,13 +740,14 @@ def build_orchestrator_agent(
         Returns:
             Inventory facts retrieved by the InventoryAgent
         """
-
         try:
             current_state = _read_workflow_state(session_id=session_id)
             current_version = current_state["version"]
-            prompt = customer_id + request
+            prompt = f"Customer ID: {customer_id}. " + request
             result = { "inventory_agent" : build_inventory_agent(prompt) }
+            print(result)
             _update_workflow_state(session_id, result, expected_version=current_version)
+            return result
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
@@ -752,7 +757,7 @@ def build_orchestrator_agent(
         except KeyError as e:
             return f"Error: Session data not found."       
 
-    # TODO: Implement route_to_policy_agent
+    # Implement route_to_policy_agent
     @tool
     def route_to_policy_agent(session_id: str, request: str) -> str:
         """
@@ -766,9 +771,23 @@ def build_orchestrator_agent(
         Returns:
             Policy information retrieved and synthesized by PolicyAgent
         """
-        pass
+        try:
+            current_state = _read_workflow_state(session_id=session_id)
+            current_version = current_state["version"]
+            result = { "policy_agent" : build_policy_agent(request) }
+            _update_workflow_state(session_id, result, expected_version=current_version)
+            print(result)
+            return result
+        except ClientError as e:
+            error_message = e.response["Error"]["Message"]
+            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+            else:
+                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+        except KeyError as e:
+            return f"Error: Session data not found."  
 
-    # TODO: Implement route_to_refund_agent
+    # Implement route_to_refund_agent
     @tool
     def route_to_refund_agent(session_id: str, customer_id: str, request: str) -> str:
         """
@@ -783,9 +802,24 @@ def build_orchestrator_agent(
         Returns:
             Refund decision from the RefundAgent
         """
-        pass
+        try:
+            current_state = _read_workflow_state(session_id=session_id)
+            current_version = current_state["version"]
+            prompt = f"Customer ID: {customer_id}. " + request
+            result = { "refund_agent" : build_refund_agent(prompt) }
+            print(result)
+            _update_workflow_state(session_id, result, expected_version=current_version)
+            return result
+        except ClientError as e:
+            error_message = e.response["Error"]["Message"]
+            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+            else:
+                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+        except KeyError as e:
+            return f"Error: Session data not found." 
 
-    # TODO: Implement route_to_communication_agent
+    # Implement route_to_communication_agent
     @tool
     def route_to_communication_agent(session_id: str, customer_id: str,
                                      original_request: str) -> str:
@@ -801,9 +835,21 @@ def build_orchestrator_agent(
         Returns:
             Final customer-facing response drafted by CommunicationAgent
         """
-        pass
+        try:
+            prompt = f"Session ID: {session_id}. Customer ID: {customer_id}. " + original_request
+            result = build_communication_agent(prompt)
+            print(result)
+            return result
+        except ClientError as e:
+            error_message = e.response["Error"]["Message"]
+            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+            else:
+                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+        except KeyError as e:
+            return f"Error: Session data not found." 
 
-    # TODO: Implement initialize_session
+    # Implement initialize_session
     @tool
     def initialize_session(session_id: str, customer_id: str) -> str:
         """
@@ -817,10 +863,30 @@ def build_orchestrator_agent(
         Returns:
             Confirmation that the session was initialized
         """
-        pass
+        try:
+            _create_workflow_state(session_id, customer_id)
+            return f"200 OK. Session with ID {session_id} initiated for {customer_id}."
+        except ClientError as e:
+            error_message = e.response["Error"]["Message"]
+            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+            else:
+                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+        except KeyError as e:
+            return f"Error: Session data not found." 
 
-    # TODO: Instantiate and return the OrchestratorAgent
-    pass
+    # Instantiate and return the OrchestratorAgent
+    return Agent(
+        model=model,
+        system_prompt=sys_prompt,
+        tools=[
+            initialize_session,
+            route_to_inventory_agent,
+            route_to_refund_agent,
+            route_to_policy_agent,
+            route_to_communication_agent
+        ]
+    )
 
 
 # ═══════════════════════════════════════════════════════
