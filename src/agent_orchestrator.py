@@ -1323,8 +1323,8 @@ def configure_observability(runtime_arn: str) -> None:
             "xRayConfig":{"enabled": True, "samplingRate":1.0}
         }
         apply_observability_config(runtime_arn, logging_configuration)
-        message = (f"CloudWatch Log Group: {logging_configuration["cloudWatchConfig"]["logGroupName"]}. "
-                   f"W-Ray Sampling Rate: {logging_configuration["xRayConfig"]["samplingRate"]}")
+        message = (f"CloudWatch Log Group: {logging_configuration['cloudWatchConfig']['logGroupName']}. "
+                   f"W-Ray Sampling Rate: {logging_configuration['xRayConfig']['samplingRate']}")
         print(message)
     except Exception as e:
         print(f"[Note] Observability configuration failed: {e}")
