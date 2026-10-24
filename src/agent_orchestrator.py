@@ -1101,8 +1101,7 @@ def create_guardrail() -> tuple[str, str]:
                     "name": "PricingNegotiations",
                     "definition": (
                         "Haggling, bargaining, or requests to alter, reduce, or renegotiate an advertised or quoted price. "
-                        "Calculations using a specified price and discount and general math scenarios "
-                        "regarding discounts and totals are strictly allowed."
+                        "Calculations are ALWAYS allowed."
                     ),
                     "examples": [
                         "Can you give me a 20% discount on this plan?",
