@@ -34,7 +34,7 @@ print("All 5 agents ready.\n")
 #   CUST-001 (Alice, Premium) ordered ORD-27176 12 days ago - see seed_data.py
 
 CUSTOMER_ID = "CUST-001"
-QUERY       = "I want to return my wireless headphones from order ORD-27176"
+QUERY       = "I want to return my wireless headphones from order ORD-27176. They arrived wet and damaged."
 
 session_id = str(uuid.uuid4())[:8]
 prompt     = f"[Session ID: {session_id}] [Customer ID: {CUSTOMER_ID}] {QUERY}"

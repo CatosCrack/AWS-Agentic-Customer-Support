@@ -265,9 +265,9 @@ def build_inventory_agent() -> Agent:
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
             return f"Order data not found."
 
@@ -291,9 +291,9 @@ def build_inventory_agent() -> Agent:
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
             return f"User data not found."
 
@@ -320,11 +320,11 @@ def build_inventory_agent() -> Agent:
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
-            print(f"User data not found. Hint: {e}")
+            logger.warning(f"User data not found. Hint: {e}")
 
     # Instantiate and return the Agent
     return Agent(model=model,
@@ -385,9 +385,9 @@ def build_refund_agent() -> Agent:
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
             return f"Error: User data not found."
 
@@ -411,20 +411,17 @@ def build_refund_agent() -> Agent:
         try:
             order_table = dynamodb.Table(config.ORDERS_TABLE)
             order = order_table.update_item(
-                Key={"session_id": customer_id,"order_id":order_id},
+                Key={"customer_id": customer_id, "order_id":order_id},
                 UpdateExpression="SET #order_status = :new_status, #reason = :user_reason, #return_reference = :return_reference",
                 ConditionExpression="attribute_exists(customer_id)",
                 ExpressionAttributeNames={"#order_status":"status",
                                           "#reason":"reason",
                                           "#return_reference":"return_reference"},
-                ExpressionAttributeValues={":new_status":"returned",
+                ExpressionAttributeValues={":new_status":"returning",
                                            ":user_reason":reason,
                                            ":return_reference":return_reference},
                 ReturnValues="ALL_NEW"
             )
-
-            print("New order entry:")
-            print(order["Attributes"])
 
             return {
                 "return_reference":return_reference,
@@ -434,13 +431,13 @@ def build_refund_agent() -> Agent:
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             elif e.response["Error"]["Code"] == "ConditionalCheckFailedException":
                 return f"Error: User or Order do not exist in the table. Hint: {error_message}"
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
-            print(f"Error: Attributes not found in order object. Hint: {error_message}")
+            logger.warning(f"Error: Attributes not found in order object. Hint: {e}")
 
     # Instantiate and return the Agent
     return Agent(model=model,
@@ -482,7 +479,7 @@ def build_policy_agent() -> Agent:
     def retrieve_returns_policy(query: str) -> str:
         """Retrieve relevant passages from the Returns Policy knowledge base."""
         results = retrieve_from_knowledge_base(config.RETURNS_KB_ID, query)
-        return results
+        return format_kb_results(results)
 
     # Create the ReturnsPolicyRetrieverAgent with the tool above
     
@@ -495,7 +492,7 @@ def build_policy_agent() -> Agent:
     def retrieve_shipping_policy(query: str) -> str:
         """Retrieve relevant passages from the Shipping Policy knowledge base."""
         results = retrieve_from_knowledge_base(config.SHIPPING_KB_ID, query)
-        return results
+        return format_kb_results(results)
 
     # Create the ShippingPolicyRetrieverAgent with the tool above
     shipping_agent = Agent(model=worker_model,
@@ -507,14 +504,14 @@ def build_policy_agent() -> Agent:
     def retrieve_warranty_policy(query: str) -> str:
         """Retrieve relevant passages from the Warranty Policy knowledge base."""
         results = retrieve_from_knowledge_base(config.WARRANTY_KB_ID, query)
-        return results
+        return format_kb_results(results)
 
     # Create the WarrantyPolicyRetrieverAgent with the tool above
     warranty_agent = Agent(model=worker_model,
                            system_prompt=worker_sys_prompt,
                            tools=[retrieve_warranty_policy])
 
-    # TODO: Implement search_all_policies - parallel RAG retrieval tool
+    # Implement search_all_policies - parallel RAG retrieval tool
     @tool
     def search_all_policies(query: str) -> str:
         """
@@ -665,9 +662,9 @@ def build_communication_agent() -> Agent:
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
             return f"Error: Session data not found."
 
@@ -691,6 +688,8 @@ def build_orchestrator_agent(
     Build the Orchestrator Agent that routes requests and manages WorkflowState.
     """
 
+    ATTEMPTS = 4
+
     # Create a BedrockModel
     model = BedrockModel(
         model_id=config.ORCHESTRATOR_MODEL_ID,
@@ -710,7 +709,8 @@ def build_orchestrator_agent(
     you simply pass that answer to the user.
 
     RULES:
-    1- Call initialize_session right after a session starts
+    1- ALWAYS call initialize_session FIRST, on its own, and wait for it to succeed
+       before calling any other tool. Use the exact Session ID from the request.
     2- Order status, return, or refund requests go to route_to_inventory_agent then route_to_refund_agent
     3- Policy meaning questions (return windows, shipping rates, warranty terms, etc) go to route_to_policy_agent
     4- Account questions ("what is my tier?", "am I premium?") go to route_to_inventory_agent
@@ -740,22 +740,26 @@ def build_orchestrator_agent(
         Returns:
             Inventory facts retrieved by the InventoryAgent
         """
-        try:
-            current_state = _read_workflow_state(session_id=session_id)
-            current_version = current_state["version"]
-            prompt = f"Customer ID: {customer_id}. " + request
-            result = { "inventory_agent" : build_inventory_agent(prompt) }
-            print(result)
-            _update_workflow_state(session_id, result, expected_version=current_version)
-            return result
-        except ClientError as e:
-            error_message = e.response["Error"]["Message"]
-            if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
-            else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
-        except KeyError as e:
-            return f"Error: Session data not found."       
+        for attempt in range(ATTEMPTS):
+            try:
+                current_state = _read_workflow_state(session_id=session_id)
+                if current_state is None:
+                    return (f"Error: no WorkflowState found for session {session_id}. "
+                            "Call initialize_session first, then retry.")
+                current_version = current_state["version"]
+                prompt = f"Customer ID: {customer_id}. " + request
+                agent = build_inventory_agent()
+                result = { "inventory_agent" : str(agent(prompt))}
+                _update_workflow_state(session_id, result, expected_version=current_version)
+                return result
+            except ClientError as e:
+                error_message = e.response["Error"]["Message"]
+                if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                    logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                else:
+                    logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
+            except KeyError as e:
+                logger.warning(f"Error: Session data not found.")    
 
     # Implement route_to_policy_agent
     @tool
@@ -773,17 +777,20 @@ def build_orchestrator_agent(
         """
         try:
             current_state = _read_workflow_state(session_id=session_id)
+            if current_state is None:
+                return (f"Error: no WorkflowState found for session {session_id}. "
+                        "Call initialize_session first, then retry.")
             current_version = current_state["version"]
-            result = { "policy_agent" : build_policy_agent(request) }
+            agent = build_policy_agent()
+            result = { "policy_agent" : str(agent(request)) }
             _update_workflow_state(session_id, result, expected_version=current_version)
-            print(result)
             return result
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
             return f"Error: Session data not found."  
 
@@ -804,18 +811,21 @@ def build_orchestrator_agent(
         """
         try:
             current_state = _read_workflow_state(session_id=session_id)
+            if current_state is None:
+                return (f"Error: no WorkflowState found for session {session_id}. "
+                        "Call initialize_session first, then retry.")
             current_version = current_state["version"]
             prompt = f"Customer ID: {customer_id}. " + request
-            result = { "refund_agent" : build_refund_agent(prompt) }
-            print(result)
+            agent = build_refund_agent()
+            result = { "refund_agent" : str(agent(prompt)) }
             _update_workflow_state(session_id, result, expected_version=current_version)
             return result
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
             return f"Error: Session data not found." 
 
@@ -837,15 +847,15 @@ def build_orchestrator_agent(
         """
         try:
             prompt = f"Session ID: {session_id}. Customer ID: {customer_id}. " + original_request
-            result = build_communication_agent(prompt)
-            print(result)
-            return result
+            agent = build_communication_agent()
+            result = agent(prompt)
+            return str(result)
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
             return f"Error: Session data not found." 
 
@@ -869,9 +879,9 @@ def build_orchestrator_agent(
         except ClientError as e:
             error_message = e.response["Error"]["Message"]
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                print(f"Error: Table or Item not found. Missing Resource: {error_message}")
+                logger.warning(f"Error: Table or Item not found. Missing Resource: {error_message}")
             else:
-                print(f"Couldn't query DynamoDB table. Hint: {error_message}")
+                logger.warning(f"Couldn't query DynamoDB table. Hint: {error_message}")
         except KeyError as e:
             return f"Error: Session data not found." 
 
@@ -989,7 +999,7 @@ def create_guardrail() -> tuple[str, str]:
             print(f"Guardrail already exists: {guardrail_id} (version: {guardrail_version})")
             return guardrail_id, guardrail_version
 
-    # TODO: Create the guardrail
+    # Create the guardrail
     # Use bedrock_client.create_guardrail() with:
     #   - name (config.GUARDRAIL_NAME) and description
     #   - contentPolicyConfig - filtersConfig for SEXUAL, VIOLENCE, HATE at HIGH
@@ -1012,9 +1022,122 @@ def create_guardrail() -> tuple[str, str]:
     # Then promote it from DRAFT to a numbered version with
     # bedrock_client.create_guardrail_version(guardrailIdentifier=...)
     # and return (guardrail_id, guardrail_version).
-
-    pass
-
+    response = bedrock_client.create_guardrail(
+        name=config.GUARDRAIL_NAME,
+        description="Bedrock Guardrail filtering harmful content, PII, competitors, legal threats, and price negotiations.",
+        blockedInputMessaging="I apologize. I cannot process this request because it violates our guidelines.",
+        blockedOutputsMessaging="I apologize. The response cannot be displayed because it violates our guidelines.",
+        crossRegionConfig={
+            "guardrailProfileIdentifier": "us.guardrail.v1:0"
+        },
+        contentPolicyConfig={
+            "filtersConfig":[
+                {
+                    "type": "SEXUAL",
+                    "inputStrength": "HIGH",
+                    "outputStrength": "HIGH",
+                },
+                {
+                    "type": "VIOLENCE",
+                    "inputStrength": "HIGH",
+                    "outputStrength": "HIGH",
+                },
+                {
+                    "type": "HATE",
+                    "inputStrength": "HIGH",
+                    "outputStrength": "HIGH",
+                },
+                {
+                    "type": "INSULTS",
+                    "inputStrength": "MEDIUM",
+                    "outputStrength": "MEDIUM",
+                },
+                {
+                    "type": "MISCONDUCT",
+                    "inputStrength": "MEDIUM",
+                    "outputStrength": "MEDIUM",
+                },
+            ]
+        },
+        sensitiveInformationPolicyConfig={
+            "piiEntitiesConfig":[
+                {
+                    "type": "CREDIT_DEBIT_CARD_NUMBER",
+                    "action": "BLOCK",
+                },
+                {
+                    "type": "US_SOCIAL_SECURITY_NUMBER",
+                    "action": "BLOCK",
+                },
+                {
+                    "type": "EMAIL",
+                    "action": "ANONYMIZE",
+                },
+                {
+                    "type": "PHONE",
+                    "action": "ANONYMIZE",
+                },
+            ]
+        },
+        topicPolicyConfig={
+            "tierConfig": {
+                "tierName": "STANDARD"
+            },
+            "topicsConfig": [
+                {
+                    "name": "CompetitorProducts",
+                    "definition": (
+                        "Discussions, inquiries, comparisons, or recommendations regarding "
+                        "competing copmanies, products, or alternative platforms."
+                    ),
+                    "examples": [
+                        "Can you tell me how you compare to your competitor?",
+                        "What competing products do you recommend instead of this?",
+                        "Why should I buy your software instead of Competitor X?",
+                    ],
+                    "type": "DENY",
+                },
+                {
+                    "name": "PricingNegotiations",
+                    "definition": (
+                        "Haggling, bargaining, or requests to alter, reduce, or renegotiate an advertised or quoted price. "
+                        "Calculations using a specified price and discount and general math scenarios "
+                        "regarding discounts and totals are strictly allowed."
+                    ),
+                    "examples": [
+                        "Can you give me a 20% discount on this plan?",
+                        "That is too expensive, will you match your competitor's price?",
+                        "Give me a better deal on this subscription.",
+                    ],
+                    "type": "DENY",
+                },
+                {
+                    "name": "LegalThreats",
+                    "definition": (
+                        "Threats of litigation, lawsuits, legal claims, subpoenas, or seeking legal recourse against the company."
+                    ),
+                    "examples": [
+                        "I am going to sue your company for damages.",
+                        "My lawyer will contact you about this breach of contract.",
+                        "Expect a lawsuit if you do not resolve this immediately.",
+                    ],
+                    "type": "DENY",
+                },
+            ],
+        },
+        wordPolicyConfig={
+            "managedWordListsConfig": [
+                {"type": "PROFANITY"}
+            ]
+        },
+    )
+    guardrail_id = response["guardrailId"]
+    upgrade = bedrock_client.create_guardrail_version(
+        guardrailIdentifier=guardrail_id,
+        description="First version"
+    )
+    guardrail_version = upgrade["version"]
+    return (guardrail_id, guardrail_version)
 
 def deploy_to_agentcore_runtime(
     orchestrator_agent: Agent,
@@ -1054,7 +1177,7 @@ def deploy_to_agentcore_runtime(
     # Stage the code the CLI packages (src modules + config.py + pyproject.toml).
     agentcore_cli.stage_runtime_code()
 
-    # TODO: Configure and deploy the runtime with the AgentCore CLI
+    # Configure and deploy the runtime with the AgentCore CLI
     # 1. Build the runtime environment variables dict `runtime_env` with:
     #      AWS_REGION, PROJECT_NAME (config.AWS_REGION / config.PROJECT_NAME),
     #      RETURNS_KB_ID, SHIPPING_KB_ID, WARRANTY_KB_ID (from config),
@@ -1068,7 +1191,28 @@ def deploy_to_agentcore_runtime(
     # 3. Deploy:  agentcore_cli.deploy()        (runs `agentcore deploy -y`)
     # 4. Read the ARN the CLI recorded:
     #      runtime_arn = agentcore_cli.deployed_runtime_arn()
-    runtime_arn = None
+
+    runtime_env = {
+        "AWS_REGION":config.AWS_REGION,
+        "PROJECT_NAME":config.PROJECT_NAME,
+        "RETURNS_KB_ID":config.RETURNS_KB_ID,
+        "SHIPPING_KB_ID":config.SHIPPING_KB_ID,
+        "WARRANTY_KB_ID":config.WARRANTY_KB_ID,
+        "AGENT_LOG_GROUP":config.AGENT_LOG_GROUP,
+        "GUARDRAIL_ID":guardrail_id,
+        "GUARDRAIL_VERSION":guardrail_version
+    }
+
+    agentcore_cli.configure_runtime(
+        env_vars=runtime_env,
+        network_mode='PUBLIC',
+        protocol='HTTP',
+        execution_role_arn=config.AGENTCORE_ROLE_ARN
+    )
+
+    agentcore_cli.deploy()
+
+    runtime_arn = agentcore_cli.deployed_runtime_arn()
 
     if not runtime_arn:
         raise NotImplementedError("deploy_to_agentcore_runtime: AgentCore CLI deployment not implemented")
@@ -1102,7 +1246,7 @@ def configure_memory(runtime_arn: str) -> str:
             print(f"AgentCore Memory already exists: {memory_arn}")
             return memory_arn
 
-    # TODO: Create AgentCore Memory
+    # Create AgentCore Memory
     # Use agentcore_control.create_memory() with:
     #   - name (memory_name) and a description
     #   - eventExpiryDuration = 7   (days)
@@ -1111,7 +1255,20 @@ def configure_memory(runtime_arn: str) -> str:
     #         'namespaces': ['/summaries/{actorId}/{sessionId}']}}]
     #   - clientToken (e.g. str(uuid.uuid4())) for idempotency
     # Store the API response in `response`.
-    response = None
+
+    response = agentcore_control.create_memory(
+        name=config.MEMORY_NAME,
+        description="Memory resource for final udacity project implementing SessionSummary strategy",
+        eventExpiryDuration=7,
+        memoryStrategies=[
+            {"summaryMemoryStrategy":{
+                "name":"session_summary",
+                "namespaceTemplates":["/summaries/{actorId}/{sessionId}"]
+                }
+            }
+        ],
+        clientToken=str(uuid.uuid4())
+    )
 
     if response is None:
         raise NotImplementedError("configure_memory: create_memory() not implemented")
@@ -1149,7 +1306,7 @@ def configure_observability(runtime_arn: str) -> None:
                           sampling percentage; runtime env AGENT_TRACING_ENABLED /
                           AGENT_TRACE_SAMPLING_RATE
     """
-    # TODO: Build the logging configuration
+    # Build the logging configuration
     # logging_configuration = {
     #     'cloudWatchConfig': {'logGroupName': config.AGENT_LOG_GROUP,
     #                          'logLevel': 'INFO', 'enabled': True},
@@ -1160,7 +1317,18 @@ def configure_observability(runtime_arn: str) -> None:
     # and the X-Ray sampling rate; on exception print
     #   "[Note] Observability configuration failed: <e>"
 
-    pass
+    try:
+        logging_configuration = {
+            "cloudWatchConfig":{'logGroupName': config.AGENT_LOG_GROUP,
+                             'logLevel': 'INFO', 'enabled': True},
+            "xRayConfig":{"enabled": True, "samplingRate":1.0}
+        }
+        apply_observability_config(runtime_arn, logging_configuration)
+        message = (f"CloudWatch Log Group: {logging_configuration["cloudWatchConfig"]["logGroupName"]}. "
+                   f"W-Ray Sampling Rate: {logging_configuration["xRayConfig"]["samplingRate"]}")
+        print(message)
+    except Exception as e:
+        print(f"[Note] Observability configuration failed: {e}")
 
 
 # ═══════════════════════════════════════════════════════

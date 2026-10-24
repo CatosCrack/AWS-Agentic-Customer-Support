@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@aws/agentcore": "^1.0.0"
+  }
+}

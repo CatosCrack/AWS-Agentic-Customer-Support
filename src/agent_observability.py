@@ -338,7 +338,13 @@ def _traced(fn):
         logger.info("tool call  %s %s", name, _short_args(kwargs))
         with tracer.subsegment(node_name or name, namespace=namespace,
                                fallback_ok=fallback, metadata={'tool': name}):
-            result = fn(*args, **kwargs)
+            try:
+                result = fn(*args, **kwargs)
+            except Exception:
+                # Strands swallows tool exceptions and hands them to the LLM as
+                # text - log the full traceback so failures are visible.
+                logger.exception("tool FAILED %s %s", name, _short_args(kwargs))
+                raise
         logger.info("tool done  %s (%.2fs)", name, time.time() - t0)
         return result
     return wrapper
